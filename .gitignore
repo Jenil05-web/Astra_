@@ -1,0 +1,71 @@
+# --- OS Metadata ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDEs & Editors ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+.classpath
+
+# --- Node.js / Frontend (MERN) ---
+node_modules/
+dist/
+build/
+coverage/
+.npm
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Python / AI Engineering ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.ipynb_checkpoints/
+
+# --- Environment Variables (CRITICAL) ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# --- Data & Heavy Files ---
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.csv
+*.jsonl
+*.faiss
+*.pkl
+*.db
+*.sqlite3
+
+# --- Temporary / Logs ---
+*.log
+*.bak
+*.tmp
+*.temp
+*.swp
+*.swo
+*.swn
+.DS_Store
+
+# --- Configuration (Optional - ignore if using Streamlit secrets) ---
+.toml
+

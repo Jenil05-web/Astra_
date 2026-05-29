@@ -1,0 +1,1 @@
+%pip install langchain langchain-community langchain-openai faiss-cpu ragas langgraph langsmith fastapi uvicorn sentence-transformers numpy datasets
