@@ -120,7 +120,7 @@ DEFAULT_EVAL_DATASET = [
 
 
 # ── Thread-isolated Ragas evaluation 
-def _run_ragas_isolated(samples: list):
+def _run_ragas_isolated(samples: list): # in ragas evaluation we will not be using langsmith together
     """
     Run Ragas evaluate() inside a plain threading.Thread.
 
@@ -131,7 +131,7 @@ def _run_ragas_isolated(samples: list):
     """
     result_box: dict = {}
 
-    def _worker():
+    def _worker(): # this function will basically run in a clean environment with no LangSmith tracer registered, so Ragas's callbacks work as intended.
         import asyncio, nest_asyncio as _na
         # Give this thread its own clean event loop
         loop = asyncio.new_event_loop()
@@ -162,6 +162,8 @@ def _run_ragas_isolated(samples: list):
 # ── Document + pipeline 
 def load_documents(pdf_path: str) -> list:
     return PyPDFLoader(pdf_path).load()
+     # docuuments loaded 
+     # Rag pipline building function
 
 
 def build_rag_pipeline(docs: list, chunk_size: int, chunk_overlap: int,
@@ -182,7 +184,7 @@ def build_rag_pipeline(docs: list, chunk_size: int, chunk_overlap: int,
     return chain, len(chunks)
 
 
-# ── Query rewriter (used only in Mode B live chat) ─────────────────────────────
+# ── Query rewriter (used only in Mode B live chat) 
 _rewrite_prompt = ChatPromptTemplate.from_messages([
     ("system", "Generate exactly 2 different search queries for the question. "
                "Return ONLY the queries, one per line, numbered 1. 2."),
@@ -219,7 +221,7 @@ def rewrite_query(question: str) -> list[str]:
     return cleaned[:2]
 
 
-# ── run_rag (Mode B — with rewriting + telemetry) ─────────────────────────────
+# ── run_rag (Mode B — with rewriting + telemetry) 
 @traceable(name="run-rag-live")
 def run_rag(question: str, chain) -> dict:
     t0          = time.time()
@@ -328,7 +330,7 @@ class AstraState(TypedDict):
     iteration:      int
     done:           bool
 
-
+# this will build the entire graph or three nodes and will define the flow between them.
 def build_graph(docs: list, eval_dataset: list, score_threshold: float,
                 max_iterations: int, log_callback: Callable = None,
                 history: list = None):
@@ -339,7 +341,7 @@ def build_graph(docs: list, eval_dataset: list, score_threshold: float,
     def _log(msg: str):
         if log_callback:
             log_callback(msg)
-
+ # this node will be called fitrst , it will build the rag pipeline and evaluate it against the dataset.
     def execute_node(state: AstraState) -> AstraState:
         # Increment iteration here so execute + evaluate share the same run number
         i = state["iteration"] + 1
@@ -353,7 +355,7 @@ def build_graph(docs: list, eval_dataset: list, score_threshold: float,
         )
         # Write the incremented iteration back so evaluate_node sees the right value
         return {**state, "scores": scores, "iteration": i}
-
+ # this node will evaluate the scores and decide whether to end the loop or continue tuning.
     def evaluate_node(state: AstraState) -> AstraState:
         avg       = state["scores"]["avg"]
         iteration = state["iteration"]   # already incremented by execute_node
@@ -375,7 +377,7 @@ def build_graph(docs: list, eval_dataset: list, score_threshold: float,
         elif done:
             _log(f"[Run {iteration}] Max iterations reached. Best config saved.")
         return {**state, "done": done}
-
+ # this node will tune the parameters based on which metric is low and log the changes.
     def tune_node(state: AstraState) -> AstraState:
         scores         = state["scores"]
         i              = state["iteration"]   # correct run number (already incremented)
