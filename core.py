@@ -26,6 +26,10 @@ import os
 import time
 import threading
 import nest_asyncio          
+try:
+    import nest_asyncio
+except Exception:
+    nest_asyncio = None
 import numpy as np
 from typing import TypedDict, Callable
 from dotenv import load_dotenv
@@ -131,22 +135,29 @@ def _run_ragas_isolated(samples: list): # in ragas evaluation we will not be usi
     """
     result_box: dict = {}
 
-    def _worker(): # this function will basically run in a clean environment with no LangSmith tracer registered, so Ragas's callbacks work as intended.
-        import asyncio, nest_asyncio as _na
-        # Give this thread its own clean event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+def _worker():
+    import asyncio
+    # Give this thread its own clean event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    # Safely apply nest_asyncio only if available and on compatible Python
+    try:
+        import nest_asyncio as _na
         _na.apply(loop)
-        try:
-            df = evaluate(
-                EvaluationDataset(samples=samples),
-                metrics=[Faithfulness(), ContextRecall(), ContextPrecision()],
-            ).to_pandas()
-            result_box["df"] = df
-        except Exception as exc:
-            result_box["error"] = exc
-        finally:
-            loop.close()
+    except Exception:
+        pass  # nest_asyncio unavailable or incompatible (e.g. Python 3.14) — safe to skip
+    
+    try:
+        df = evaluate(
+            EvaluationDataset(samples=samples),
+            metrics=[Faithfulness(), ContextRecall(), ContextPrecision()],
+        ).to_pandas()
+        result_box["df"] = df
+    except Exception as exc:
+        result_box["error"] = exc
+    finally:
+        loop.close()
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
