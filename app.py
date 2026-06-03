@@ -3,7 +3,7 @@ app.py — Astra UI.  Run with:  streamlit run app.py
 Fixed version: proper Streamlit-native layout, working optimizer status,
 fixed chart, proper spacing, live terminal updates.
 """
-
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 import json
 import math
 import time
@@ -829,6 +829,7 @@ with LEFT:
                     _stop_ticker.wait(timeout=1.0)
 
             ticker_thread = threading.Thread(target=_ticker, daemon=True)
+            add_script_run_ctx(ticker_thread)
             ticker_thread.start()
 
             # ── Invoke the graph (blocking) ───────────────────────────────────
