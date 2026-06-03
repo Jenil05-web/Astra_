@@ -1,4 +1,3 @@
-%pip install langchain langchain-community langchain-openai faiss-cpu ragas langgraph langsmith fastapi uvicorn sentence-transformers numpy datasets
 # ── Streamlit ─────────────────────────────────────────────────────────────────
 streamlit>=1.35.0
 
