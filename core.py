@@ -46,7 +46,7 @@ from ragas.metrics import Faithfulness, ContextRecall, ContextPrecision
 
 # ── Patch 1: event loop ───────────────────────────────────────────────────────
 # asyncio.run() inside Ragas conflicts with Streamlit/LangGraph's running loop.
-nest_asyncio.apply()
+# nest_asyncio.apply()
 
 # ── Patch 2: monkey-patch parse_run_traces (root-cause fix) ──────────────────
 # LangSmith hooks into LangChain's callback manager at the object level, not just
