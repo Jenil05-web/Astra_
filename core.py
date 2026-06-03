@@ -25,7 +25,7 @@ Fixes applied
 import os
 import time
 import threading
-import nest_asyncio          # pip install nest_asyncio
+import nest_asyncio          
 import numpy as np
 from typing import TypedDict, Callable
 from dotenv import load_dotenv
