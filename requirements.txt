@@ -1,7 +1,8 @@
 streamlit==1.35.0
+rich<14
 
 langchain==0.3.7
-langchain-core==0.3.19
+langchain-core==0.3.29
 langchain-community==0.3.7
 langchain-openai==0.2.9
 langchain-text-splitters==0.3.2
