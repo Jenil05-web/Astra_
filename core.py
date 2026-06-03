@@ -89,7 +89,13 @@ COST_PER_INPUT_TOKEN  = 0.0000015
 COST_PER_OUTPUT_TOKEN = 0.000002
 
 # Cached embedding model — avoids re-initialising on every pipeline rebuild
-_EMBED_MODEL = OpenAIEmbeddings()
+_EMBED_MODEL = None
+
+def _get_embed_model():
+    global _EMBED_MODEL
+    if _EMBED_MODEL is None:
+        _EMBED_MODEL = OpenAIEmbeddings()
+    return _EMBED_MODEL
 
 # ── Prompt variants ────────────────────────────────────────────────────────────
 PROMPT_VARIANTS = {
@@ -185,7 +191,7 @@ def build_rag_pipeline(docs: list, chunk_size: int, chunk_overlap: int,
     chunks    = RecursiveCharacterTextSplitter(
                     chunk_size=chunk_size, chunk_overlap=chunk_overlap
                 ).split_documents(docs)
-    db        = FAISS.from_documents(chunks, _EMBED_MODEL)
+    db        = FAISS.from_documents(chunks, _get_embed_model())
     retriever = db.as_retriever(search_kwargs={"k": top_k})
     llm       = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
     chain     = create_retrieval_chain(
