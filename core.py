@@ -20,12 +20,14 @@ Fixes applied
     are computed before this function runs, so returning [] on failure is safe.
 11. Thread-isolated evaluate() call — runs Ragas in a daemon thread whose
     contextvars start fresh, so LangSmith's ContextVar-based tracer is absent.
+12. Lazy-load _EMBED_MODEL and _rewriter — avoids import-time crash when
+    OpenAI API key is not yet available (e.g. on Streamlit Cloud boot).
+13. Fixed _worker indentation — was accidentally outside _run_ragas_isolated.
 """
 
 import os
 import time
 import threading
-import nest_asyncio          
 try:
     import nest_asyncio
 except Exception:
@@ -88,7 +90,9 @@ os.environ["LANGCHAIN_PROJECT"]    = "astra-rag-optimizer"
 COST_PER_INPUT_TOKEN  = 0.0000015
 COST_PER_OUTPUT_TOKEN = 0.000002
 
-# Cached embedding model — avoids re-initialising on every pipeline rebuild
+# ── Lazy-loaded embedding model ───────────────────────────────────────────────
+# Instantiated on first use, not at import time, so boot never crashes when
+# the API key isn't set yet (e.g. Streamlit Cloud cold start).
 _EMBED_MODEL = None
 
 def _get_embed_model():
@@ -129,8 +133,8 @@ DEFAULT_EVAL_DATASET = [
 ]
 
 
-# ── Thread-isolated Ragas evaluation 
-def _run_ragas_isolated(samples: list): # in ragas evaluation we will not be using langsmith together
+# ── Thread-isolated Ragas evaluation ─────────────────────────────────────────
+def _run_ragas_isolated(samples: list):
     """
     Run Ragas evaluate() inside a plain threading.Thread.
 
@@ -141,29 +145,29 @@ def _run_ragas_isolated(samples: list): # in ragas evaluation we will not be usi
     """
     result_box: dict = {}
 
-def _worker():
-    import asyncio
-    # Give this thread its own clean event loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Safely apply nest_asyncio only if available and on compatible Python
-    try:
-        import nest_asyncio as _na
-        _na.apply(loop)
-    except Exception:
-        pass  # nest_asyncio unavailable or incompatible (e.g. Python 3.14) — safe to skip
-    
-    try:
-        df = evaluate(
-            EvaluationDataset(samples=samples),
-            metrics=[Faithfulness(), ContextRecall(), ContextPrecision()],
-        ).to_pandas()
-        result_box["df"] = df
-    except Exception as exc:
-        result_box["error"] = exc
-    finally:
-        loop.close()
+    def _worker(samples=samples, result_box=result_box):
+        import asyncio
+        # Give this thread its own clean event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        # Safely apply nest_asyncio only if available and on compatible Python
+        try:
+            import nest_asyncio as _na
+            _na.apply(loop)
+        except Exception:
+            pass  # nest_asyncio unavailable or incompatible — safe to skip
+
+        try:
+            df = evaluate(
+                EvaluationDataset(samples=samples),
+                metrics=[Faithfulness(), ContextRecall(), ContextPrecision()],
+            ).to_pandas()
+            result_box["df"] = df
+        except Exception as exc:
+            result_box["error"] = exc
+        finally:
+            loop.close()
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
@@ -176,11 +180,9 @@ def _worker():
     return result_box["df"]
 
 
-# ── Document + pipeline 
+# ── Document + pipeline ───────────────────────────────────────────────────────
 def load_documents(pdf_path: str) -> list:
     return PyPDFLoader(pdf_path).load()
-     # docuuments loaded 
-     # Rag pipline building function
 
 
 def build_rag_pipeline(docs: list, chunk_size: int, chunk_overlap: int,
@@ -201,13 +203,20 @@ def build_rag_pipeline(docs: list, chunk_size: int, chunk_overlap: int,
     return chain, len(chunks)
 
 
-# ── Query rewriter (used only in Mode B live chat) 
+# ── Query rewriter (used only in Mode B live chat) ────────────────────────────
 _rewrite_prompt = ChatPromptTemplate.from_messages([
     ("system", "Generate exactly 2 different search queries for the question. "
                "Return ONLY the queries, one per line, numbered 1. 2."),
     ("human", "Question: {question}")
 ])
-_rewriter = _rewrite_prompt | ChatOpenAI(model="gpt-3.5-turbo", temperature=0.5) | StrOutputParser()
+# Lazy-loaded — not built at import time to avoid OpenAI client init crash
+_rewriter = None
+
+def _get_rewriter():
+    global _rewriter
+    if _rewriter is None:
+        _rewriter = _rewrite_prompt | ChatOpenAI(model="gpt-3.5-turbo", temperature=0.5) | StrOutputParser()
+    return _rewriter
 
 
 def rewrite_query(question: str) -> list[str]:
@@ -216,7 +225,7 @@ def rewrite_query(question: str) -> list[str]:
     Handles both "1." and "1)" prefixes and ignores blank lines.
     """
     try:
-        raw = _rewriter.invoke({"question": question})
+        raw = _get_rewriter().invoke({"question": question})
     except Exception:
         return [question, question]   # graceful degradation
 
@@ -238,7 +247,7 @@ def rewrite_query(question: str) -> list[str]:
     return cleaned[:2]
 
 
-# ── run_rag (Mode B — with rewriting + telemetry) 
+# ── run_rag (Mode B — with rewriting + telemetry) ─────────────────────────────
 @traceable(name="run-rag-live")
 def run_rag(question: str, chain) -> dict:
     t0          = time.time()
@@ -285,7 +294,7 @@ def run_rag(question: str, chain) -> dict:
     }
 
 
-# ── evaluate_pipeline (training loop) 
+# ── evaluate_pipeline (training loop) ────────────────────────────────────────
 # NOTE: intentionally NOT decorated with @traceable.
 # LangSmith tracing intercepts Ragas's internal LangChain callbacks and drains
 # the root_traces list → IndexError: list index out of range in parse_run_traces.
@@ -337,7 +346,7 @@ def evaluate_pipeline(docs: list, eval_dataset: list, chunk_size: int,
     return score_dict
 
 
-# ── LangGraph 
+# ── LangGraph ─────────────────────────────────────────────────────────────────
 class AstraState(TypedDict):
     chunk_size:     int
     chunk_overlap:  int
@@ -358,7 +367,8 @@ def build_graph(docs: list, eval_dataset: list, score_threshold: float,
     def _log(msg: str):
         if log_callback:
             log_callback(msg)
- # this node will be called fitrst , it will build the rag pipeline and evaluate it against the dataset.
+
+    # this node will be called first, it will build the rag pipeline and evaluate it against the dataset.
     def execute_node(state: AstraState) -> AstraState:
         # Increment iteration here so execute + evaluate share the same run number
         i = state["iteration"] + 1
@@ -372,7 +382,8 @@ def build_graph(docs: list, eval_dataset: list, score_threshold: float,
         )
         # Write the incremented iteration back so evaluate_node sees the right value
         return {**state, "scores": scores, "iteration": i}
- # this node will evaluate the scores and decide whether to end the loop or continue tuning.
+
+    # this node will evaluate the scores and decide whether to end the loop or continue tuning.
     def evaluate_node(state: AstraState) -> AstraState:
         avg       = state["scores"]["avg"]
         iteration = state["iteration"]   # already incremented by execute_node
@@ -394,7 +405,8 @@ def build_graph(docs: list, eval_dataset: list, score_threshold: float,
         elif done:
             _log(f"[Run {iteration}] Max iterations reached. Best config saved.")
         return {**state, "done": done}
- # this node will tune the parameters based on which metric is low and log the changes.
+
+    # this node will tune the parameters based on which metric is low and log the changes.
     def tune_node(state: AstraState) -> AstraState:
         scores         = state["scores"]
         i              = state["iteration"]   # correct run number (already incremented)
