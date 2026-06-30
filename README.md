@@ -1,5 +1,4 @@
 # ◈ ASTRA: Autonomous Self-Tuning RAG Architecture
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_svg.svg)](https://ekx44y3eegkk8mxshkztcn.streamlit.app/)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 **ASTRA** is a document intelligence system that doesn't just answer questions—it **optimizes its own brain**. While most RAG (Retrieval-Augmented Generation) pipelines are static and prone to "hallucination debt," ASTRA uses a LangGraph-powered feedback loop to autonomously tune its retrieval parameters until it hits your quality standards...
