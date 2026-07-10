@@ -5,7 +5,7 @@
 ---
 ## 🚀 The Core Innovation: "The Self-Correction Loop"
 Most developers "guess" their chunk size and Top-K. ASTRA treats these as **hyperparameters** to be optimized. 
-> **The Logic:** ASTRA runs an initial retrieval, calculates Ragas metrics, and if the scores are below the target threshold, the `tune_node` modifies the FAISS indexing strategy in real-time.
+> **The Logic:** ASTRA runs an initial retrieval, calculates Ragas metrics, and if the scores are below the target threshold, the `tune_node` modifies the FAISS indexing strategy in real-time....
 
 | Metric | Trigger | Response |
 | :--- | :--- | :--- |
